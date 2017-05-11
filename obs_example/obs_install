@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# This script is delegating to zypper to install all the packages passed as
+# arguments without showing any prompts. It disabled all repositories, installs
+# the one defined in $OBS_REPOSITORY_URL and in the end reverts back to the
+# default ones.
+
+function disable_repos {
+  # Disable all repos
+  for repo in "${repos[@]}"; do
+    zypper modifyrepo -d $repo
+  done
+
+  # Add OBS repository
+  zypper ar $OBS_REPOSITORY_URL obs_repository
+}
+
+function enable_repos {
+  # Remove our obs repository
+  zypper rr obs_repository
+
+  # Enable all repos
+  for repo in "${repos[@]}"; do
+    zypper modifyrepo -d $repo
+  done
+}
+
+# Get enables repos and store them so we can enable them in the end.
+readarray -t repos <<< "$(zypper ls -E | grep "Yes" | awk '{print $1}' )"
+
+[ ! -z "$OBS_REPOSITORY_URL" ] && disable_repos
+
+zypper ref
+zypper -n in $@
+
+[ ! -z "$OBS_REPOSITORY_URL" ] && enable_repos
+
+exit 0;

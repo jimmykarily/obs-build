@@ -1,0 +1,3 @@
+Start the building with this command from the obs-build root directory:
+
+BUILD_DIR=$PWD BUILD_ROOT=/tmp/build/ ./build --cachedir=/tmp/build/cache obs_example/Dockerfile

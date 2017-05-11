@@ -1,0 +1,72 @@
+
+#################################################################
+#
+# Docker specific functions.
+#
+# Author: TODO
+#
+################################################################
+#
+# Copyright (c) 2017 SUSE Linux Products GmbH
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 2 or 3 as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program (see the file COPYING); if not, write to the
+# Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
+#
+################################################################
+
+recipe_setup_docker() {
+  TOPDIR="/docker_sources"
+  mkdir -p "$BUILD_ROOT$TOPDIR/SOURCES"
+	cp -p "$MYSRCDIR"/* $BUILD_ROOT$TOPDIR/SOURCES/
+}
+
+recipe_prepare_docker() {
+    :
+}
+
+# Variables:
+# $BUILD_ROOT is the chroot
+# $TOPDIR/SOURCES includes the docker sources
+# $TOPDIR/$DOCKERIMAGE_ROOT where docker will be called
+# $RECIPEFILE the name of the Dockerfile
+
+recipe_build_docker() {
+    # Start docker daemon. We should have docker as a dependency in the project.
+    echo "Starting docker service"
+    systemctl start docker
+
+    # Import the base image to docker.
+    # TODO Where should we find this tarball?
+    # TODO The image should be imported and tagged with the tag used in the
+    # Dockerfile.
+    echo "Importing base image to docker"
+    docker import my_image.tgz
+
+    # TODO Start the local zypper repository
+    # TODO Inject the OBS_REPOSITORY_URL in the Dockerfile as described here:
+    # https://github.com/SUSE/cloudfoundry/blob/NativeDockerInOBS_research_results/NativeDockerInOBS.md
+
+    echo "Building image"
+    docker build -t obs_image $BUILD_ROOT$TOPDIR/SOURCES/
+
+    BUILD_SUCCEEDED=true
+}
+
+recipe_resultdirs_docker() {
+    :
+}
+
+# Local Variables:
+# mode: Shell-script
+# End:

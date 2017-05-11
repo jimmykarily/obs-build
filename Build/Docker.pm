@@ -28,7 +28,7 @@
 # - build the Dockerfile
 # - export the image tarball [OPTIONAL]
 
-package Build::Dockerimage;
+package Build::Docker;
 
 use strict;
 

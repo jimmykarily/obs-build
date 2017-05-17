@@ -28,7 +28,8 @@
 recipe_setup_docker() {
   TOPDIR="/docker_sources"
   mkdir -p "$BUILD_ROOT$TOPDIR/SOURCES"
-	cp -p "$MYSRCDIR"/* $BUILD_ROOT$TOPDIR/SOURCES/
+  # Also copy the repos dir
+	cp -rp "$MYSRCDIR"/* $BUILD_ROOT$TOPDIR/SOURCES/
 }
 
 recipe_prepare_docker() {
@@ -57,8 +58,28 @@ recipe_build_docker() {
     # TODO Inject the OBS_REPOSITORY_URL in the Dockerfile as described here:
     # https://github.com/SUSE/cloudfoundry/blob/NativeDockerInOBS_research_results/NativeDockerInOBS.md
 
+    # This is where the downloaded packages live
+    REPOPATH=$BUILD_ROOT$TOPDIR/SOURCES/$REPODIR
+    # Prepare the zypper repository
+    # TODO: Handle other distribution repositories as well (deb, arch etc)
+    createrepo  $REPOPATH
+    pushd $REPOPATH
+    # TODO How does Python end up here? Maybe we need it to be a "default"
+    # dependency for Dockerfiles or something like that.
+    python -m SimpleHTTPServer 8080 &
+    HTTP_SERVER_PID=$!
+    #echo "The PID is: "$HTTP_SERVER_PID
+    popd
+
+    # Build the repository url
+    default_interface=$(ip route list | grep default | cut -d' ' -f5)
+    interface_ip=$(ip addr show $default_interface | grep "inet " | tr -s " " | cut -d' ' -f3 | cut -d'/' -f1)
+    REPO_URL=http://$interface_ip:8080/
+
     echo "Building image"
-    docker build -t obs_image $BUILD_ROOT$TOPDIR/SOURCES/
+    docker build -t obs_image --build-arg obs_repository_url=$REPO_URL $BUILD_ROOT$TOPDIR/SOURCES/
+
+    kill $HTTP_SERVER_PID
 
     BUILD_SUCCEEDED=true
 }

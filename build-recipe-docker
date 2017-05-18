@@ -43,22 +43,26 @@ recipe_prepare_docker() {
 # $RECIPEFILE the name of the Dockerfile
 
 recipe_build_docker() {
-    # Start docker daemon. We should have docker as a dependency in the project.
     echo "Starting docker service"
     systemctl start docker
 
-    # Import the base image to docker.
-    # TODO Where should we find this tarball?
-    # TODO The image should be imported and tagged with the tag used in the
-    # Dockerfile.
-    echo "Importing base image to docker"
-    docker import my_image.tgz
+    # TODO [TBD] What about the tag?
+    # The imported image comes with a tag (merged in the tarball).
+    # The user should make sure that this tag matches the one in the Dockerfile.
+    echo "Importing images to docker from /var/lib/docker_base_images"
+    for image in /var/lib/docker_base_images/*; do
+      echo "Importing '$image' in docker"
+      docker import $image
+    done
 
-    # TODO Start the local zypper repository
-    # TODO Inject the OBS_REPOSITORY_URL in the Dockerfile as described here:
-    # https://github.com/SUSE/cloudfoundry/blob/NativeDockerInOBS_research_results/NativeDockerInOBS.md
+    # Start the local zypper repository
+    # TODO [TBD] Should we inject the OBS_REPOSITORY_URL in the Dockerfile as described in
+    # the following link or is this a user's responsibility?
+    #  https://github.com/SUSE/cloudfoundry/blob/NativeDockerInOBS_research_results/NativeDockerInOBS.md
+    # TODO [TBD] What about SLES? Are dependencies fetched automatically from osc/OBS?
+    #  What about registration?
 
-    # This is where the downloaded packages live
+    # This is where the downloaded dependencies live
     REPOPATH=$BUILD_ROOT$TOPDIR/SOURCES/$REPODIR
     # Prepare the zypper repository
     # TODO: Handle other distribution repositories as well (deb, arch etc)
@@ -68,10 +72,11 @@ recipe_build_docker() {
     # dependency for Dockerfiles or something like that.
     python -m SimpleHTTPServer 8080 &
     HTTP_SERVER_PID=$!
-    #echo "The PID is: "$HTTP_SERVER_PID
     popd
 
     # Build the repository url
+    # TODO: "/bin/ip" comes from iproute2 package on openSUSE. Is that always
+    # available in the building machine?
     default_interface=$(ip route list | grep default | cut -d' ' -f5)
     interface_ip=$(ip addr show $default_interface | grep "inet " | tr -s " " | cut -d' ' -f3 | cut -d'/' -f1)
     REPO_URL=http://$interface_ip:8080/
@@ -79,12 +84,18 @@ recipe_build_docker() {
     echo "Building image"
     docker build -t obs_image --build-arg obs_repository_url=$REPO_URL $BUILD_ROOT$TOPDIR/SOURCES/
 
+    # Save the resulting image to a tarball.
+    mkdir $BUILD_ROOT$TOPDIR/DOCKER/
+    docker save --output $BUILD_ROOT$TOPDIR/DOCKER/obs_image.tar obs_image
+
+    echo "Stopping local repository server"
     kill $HTTP_SERVER_PID
 
     BUILD_SUCCEEDED=true
 }
 
 recipe_resultdirs_docker() {
+    # TODO: Implement this to copy the results outside a VM
     :
 }
 

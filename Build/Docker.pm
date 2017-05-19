@@ -47,24 +47,26 @@ sub parse {
   my @deps = ();
   my $pkg_string;
 
-  # Match from start of line until an end of line which doesn't have a backslash
-  # as the last character (Negative lookbehind).
-  # That would mean, continue to the next line. E.g.
+  # Match lines that start with "RUN" up to where the "RUN" command ends. It
+  # might span multiple lines if "\" is used (handled with negative lookbehind).
+  # E.g.
   # RUN obs_install package1 package2 \
   #   package3
-  while ($dockerfile_data =~ /^\s*RUN\s+obs_install\s+((.|\n|\r)*?)(?<!\\)$/gm) {
-    $pkg_string = $1;
+  while ($dockerfile_data =~ /(^\s*RUN(?:.|\n|\r)*?(?<!\\)$)/gm) {
+    my $run_command = $1;
 
-    # Remove the Dockerfile escape character and merge multiple lines in one
-    $pkg_string =~ s/\\(\n|\r)*//gm;
+    # Remove the Dockerfile escape character and merge multiple lines in one.
+    $run_command =~ s/\\(\n|\r)*//gm;
 
-    # Make sure we only match obs_install arguments and not any commands that
-    # follow. E.g.
-    # RUN obs_install vim && do_something_else
-    $pkg_string =~ s/(.*?)[;&].*/$1/;
-
-    my @packages = split(/\s+/, $pkg_string);
-    if (0+@packages != 0) { push @deps, @packages; }
+    # Match all obs_install commands up to the next command.
+    # A command stops at ";" or "&" or end of line. E.g.
+    #  RUN obs_install one \
+    #   two && ls ; obs_install three
+    while ($run_command =~ /obs_install\s+(.*?)(?:[;&]|$)/g) {
+      $pkg_string = $1;
+      my @packages = split(/\s+/, $pkg_string);
+      if (0+@packages != 0) { push @deps, @packages; }
+    }
   }
 
   print STDERR "Dependencies: @deps \n";

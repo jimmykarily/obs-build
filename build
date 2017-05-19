@@ -953,11 +953,6 @@ while test -n "$1"; do
       -rpmlist)
 	needarg
 	RPMLIST="--rpmlist $ARG"
-	shift
-      ;;
-      -repodir)
-	needarg
-	REPODIR="$ARG"
 	BUILD_RPMS=
 	shift
       ;;  

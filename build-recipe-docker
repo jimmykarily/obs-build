@@ -26,10 +26,17 @@
 ################################################################
 
 recipe_setup_docker() {
-  TOPDIR="/docker_sources"
+  TOPDIR="/docker"
   mkdir -p "$BUILD_ROOT$TOPDIR/SOURCES"
-  # Also copy the repos dir
-	cp -rp "$MYSRCDIR"/* $BUILD_ROOT$TOPDIR/SOURCES/
+  mkdir -p "$BUILD_ROOT$TOPDIR/SOURCES/packages"
+
+  echo "Copying packages"
+  for package in $(find repos -name \*.rpm); do
+    cp $package "$BUILD_ROOT$TOPDIR/SOURCES/packages/"
+  done
+
+  # Exclude the "repos" directory which was handled above
+  find . -maxdepth 1 ! -name "repos" ! -name '.' -exec cp -rp -t $BUILD_ROOT$TOPDIR/SOURCES/ {} \+
 }
 
 recipe_prepare_docker() {
@@ -63,16 +70,15 @@ recipe_build_docker() {
     #  What about registration?
 
     # This is where the downloaded dependencies live
-    REPOPATH=$BUILD_ROOT$TOPDIR/SOURCES/$REPODIR
+    REPOPATH=$BUILD_ROOT$TOPDIR/SOURCES/packages
     # Prepare the zypper repository
     # TODO: Handle other distribution repositories as well (deb, arch etc)
     createrepo  $REPOPATH
-    pushd $REPOPATH
-    # TODO How does Python end up here? Maybe we need it to be a "default"
-    # dependency for Dockerfiles or something like that.
+    pushd $REPOPATH > /dev/null
+    # TODO Add Python as a default building dependency.
     python -m SimpleHTTPServer 8080 &
     HTTP_SERVER_PID=$!
-    popd
+    popd > /dev/null
 
     # Build the repository url
     # TODO: "/bin/ip" comes from iproute2 package on openSUSE. Is that always

@@ -53,13 +53,14 @@ recipe_build_docker() {
     echo "Starting docker service"
     systemctl start docker
 
-    # TODO [TBD] What about the tag?
-    # The imported image comes with a tag (merged in the tarball).
-    # The user should make sure that this tag matches the one in the Dockerfile.
-    echo "Importing images to docker from /var/lib/docker_base_images"
+    # The tarball should be a "docker load" compatible image (not a filesystem one).
+    # Make sure it is generated using "docker save".
+    # This means the repository and tag are automatically generated (they are
+    # included in the tarball).
+    echo "Loading images to docker from /var/lib/docker_base_images"
     for image in /var/lib/docker_base_images/*; do
-      echo "Importing '$image' in docker"
-      docker import $image
+      echo "Loading '$image' in docker"
+      docker load --input $image
     done
 
     # Start the local zypper repository
@@ -69,7 +70,7 @@ recipe_build_docker() {
     # TODO [TBD] What about SLES? Are dependencies fetched automatically from osc/OBS?
     #  What about registration?
 
-    # This is where the downloaded dependencies live
+    # This is where we copied the downloaded dependencies in the setup method above.
     REPOPATH=$BUILD_ROOT$TOPDIR/SOURCES/packages
     # Prepare the zypper repository
     # TODO: Handle other distribution repositories as well (deb, arch etc)
@@ -82,7 +83,8 @@ recipe_build_docker() {
 
     # Build the repository url
     # TODO: "/bin/ip" comes from iproute2 package on openSUSE. Is that always
-    # available in the building machine?
+    # available in the building machine? Consider adding it as a default building
+    # dependency (like the python above).
     default_interface=$(ip route list | grep default | cut -d' ' -f5)
     interface_ip=$(ip addr show $default_interface | grep "inet " | tr -s " " | cut -d' ' -f3 | cut -d'/' -f1)
     REPO_URL=http://$interface_ip:8080/
@@ -96,6 +98,7 @@ recipe_build_docker() {
 
     echo "Stopping local repository server"
     kill $HTTP_SERVER_PID
+    kill $(pidof dockerd)
 
     BUILD_SUCCEEDED=true
 }

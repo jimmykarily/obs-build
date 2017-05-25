@@ -1,15 +1,17 @@
-FROM opensuse:latest 
+FROM opensuse:latest
 
-# Make obs_install available
-ADD obs_install /usr/bin/obs_install
+# Make obs_pkg_mgr available
+ADD obs_pkg_mgr /usr/bin/obs_pkg_mgr
 
-RUN obs_install util-linux calcurse
-RUN obs_install awk gcc \
+RUN obs_pkg_mgr install util-linux calcurse
+RUN obs_pkg_mgr install awk gcc \
   which
 
 RUN ls # irrelevant command before additional dependencies
 
-RUN obs_install glibc \  
-  file-magic && ls ; ls -la ; obs_install nethogs
+RUN obs_pkg_mgr add_repo http://download.opensuse.org/repositories/Virtualization:/containers/openSUSE_Leap_42.2/ "Virtualization:Containers (openSUSE_Leap_42.2)"
 
-RUN obs_install ssh-contact; ls && ls -la
+RUN obs_pkg_mgr install glibc \
+  file-magic && ls ; ls -la ; obs_pkg_mgr install nethogs
+
+RUN obs_pkg_mgr install ssh-contact dumb-init; ls && ls -la

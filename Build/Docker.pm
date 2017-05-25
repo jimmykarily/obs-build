@@ -69,6 +69,11 @@ sub parse {
     }
   }
 
+  # Find the base image to add it to dependencies
+  if ($dockerfile_data =~ /^\s*FROM\s+(.*)$/gm) {
+    push @deps, ("container://$1");
+  }
+
   print STDERR "Dependencies: @deps \n";
 
   my $ret = {};

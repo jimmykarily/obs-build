@@ -89,6 +89,8 @@ recipe_build_docker() {
     interface_ip=$(ip addr show $default_interface | grep "inet " | tr -s " " | cut -d' ' -f3 | cut -d'/' -f1)
     REPO_URL=http://$interface_ip:8080/
 
+    # TODO Use the TAG file to read the desired tag or use a no tag otherwise
+    # Also, use the package name as the name of the image.
     echo "Building image"
     docker build -t obs_image --build-arg obs_repository_url=$REPO_URL $BUILD_ROOT$TOPDIR/SOURCES/
 

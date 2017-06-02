@@ -37,7 +37,7 @@ sub parse {
 
   # Perl slurp mode
   local $/=undef;
-  open DOCKERFILE, $fn or die "Couldn't open Dockefile";
+  open DOCKERFILE, $fn or die "Couldn't open Dockerfile";
   my $dockerfile_data = <DOCKERFILE>;
   close DOCKERFILE;
 
@@ -60,10 +60,10 @@ sub parse {
     $run_command =~ s/\\(\n|\r)*//gm;
 
     # Match all obs_pkg_mgr commands up to the next command.
-    # A command stops at ";" or "&" or end of line. E.g.
+    # A command stops at [;&#] or end of line. E.g.
     #  RUN obs_pkg_mgr install one \
     #   two && ls ; obs_pkg_mgr install three
-    while ($run_command =~ /obs_pkg_mgr\s+install\s+(.*?)(?:[;&]|$)/g) {
+    while ($run_command =~ /obs_pkg_mgr\s+install\s+(.*?)(?:[;&]|(?:\s+#)|$)/g) {
       $pkg_string = $1;
       my @packages = split(/\s+/, $pkg_string);
       if (0+@packages != 0) { push @deps, @packages; }

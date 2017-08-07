@@ -49,15 +49,15 @@ recipe_build_fissile() {
     test -f "$docker_image_path" || cleanup_and_exit 1 "docker image not found"
 
     if ! $BUILD_DIR/startdockerd --root "$BUILD_ROOT"; then
-	cleanup_and_exit 1
+      cleanup_and_exit 1
     fi
     DOCKERD_STARTED=true
 
     echo "Loading docker image"
     if test -L "$docker_image_path" ; then
-	# copy into build root
-	cp -L "$docker_image_path" "$docker_image_path.lnk"
-	mv "$docker_image_path.lnk" "$docker_image_path"
+      # copy into build root
+      cp -L "$docker_image_path" "$docker_image_path.lnk"
+      mv "$docker_image_path.lnk" "$docker_image_path"
     fi
 
     # Inspect the content of the image to decide if this is a layered image
@@ -77,9 +77,9 @@ recipe_build_fissile() {
     cd $BUILD_ROOT/$TOPDIR/SOURCES
     # Extract the release directory.
     if [ -f release.tar.xz ]; then
-	tar -xf release.tar.xz
+      tar -xf release.tar.xz
     else
-	cleanup_and_exit 1 "Couldn't find the release source tarball. Check your _service file if you use one."
+      cleanup_and_exit 1 "Couldn't find the release source tarball. Check your _service file if you use one."
     fi
 
     # Move cached bosh tarballs to the directory where fissile will look
@@ -90,34 +90,68 @@ recipe_build_fissile() {
     cd release
     # Extract cached release ymls to their locations.
     if [ -f ../yml-cache.tar.gz ]; then
-	tar -xf ../yml-cache.tar.gz
+      tar -xf ../yml-cache.tar.gz
     fi
 
     # TODO: Remove this hackery when we use a later runc package (that already provides this symlink)
     ln -fs /usr/sbin/runc $BUILD_ROOT/usr/bin/docker-runc
 
+    echo "Generating certificates"
+    # We set GIT_ROOT to make the "make" target work but this is not actually
+    # a "git" root (because we don't have a .git directory).
+    if ! chroot $BUILD_ROOT /bin/bash -c "cd $TOPDIR/SOURCES/release && GIT_ROOT=$TOPDIR/SOURCES/release make certs"; then
+      cleanup_and_exit 1 "Generation of certificates failed"
+    fi
+
     echo "Building packages with fissile"
     if ! chroot $BUILD_ROOT /bin/bash -c "cd $TOPDIR/SOURCES/release && . .envrc && fissile build packages --docker-network-mode host"; then
-	cleanup_and_exit 1 "fissile build packages failed"
+      cleanup_and_exit 1 "fissile build packages failed"
     fi
 
     echo "Building images with fissile"
     if ! chroot $BUILD_ROOT /bin/bash -c "cd $TOPDIR/SOURCES/release && . .envrc && fissile build images"; then
-	cleanup_and_exit 1 "fissile build images failed"
+      cleanup_and_exit 1 "fissile build images failed"
     fi
+
+    echo "Generating kubernetes configuration files"
+    if ! chroot $BUILD_ROOT /bin/bash -c "cd $TOPDIR/SOURCES/release && GIT_ROOT=. make kube"; then
+      cleanup_and_exit 1 "make kube failed"
+    fi
+
+    echo "Generating kubernetes dist zip"
+    # TODO: `make kube-dist` uses "git describe" to construct the name of the zip
+    # file. We should somehow get this information pre-cooked since we don't have
+    # a git repository here (source service omits the .git repository).
+    # For now, generate a zip file without any git information.
+    if ! chroot $BUILD_ROOT /bin/bash -c "cd $TOPDIR/SOURCES/release/kube && zip -r9 ../kube.zip *"; then
+      cleanup_and_exit 1 "kubernetes dist zip file generation failed"
+    fi
+
+    if [  ! -f $BUILD_ROOT$TOPDIR/SOURCES/release/kube.zip ]; then
+      cleanup_and_exit 1 "kubernetes dist zip file doesn't exist"
+    fi
+
+    echo "Generating kubernetes helm charts"
+    if ! chroot $BUILD_ROOT /bin/bash -c "cd $TOPDIR/SOURCES/release && . .envrc && fissile build helm --output-dir=helm --defaults-file=\"env/certs.env\" --use-memory-limits=false"; then
+      cleanup_and_exit 1 "helm chart generation failed"
+    fi
+
+    # Save kubernetes configuration and helm charts as build artifacts
+    cp $BUILD_ROOT$TOPDIR/SOURCES/release/kube.zip $BUILD_ROOT$TOPDIR/FISSILE/
+    tar cfJ $BUILD_ROOT$TOPDIR/FISSILE/helm.tar.xz $BUILD_ROOT$TOPDIR/SOURCES/release/helm
 
     # Save the resulting images to tarballs.
     mkdir -p $BUILD_ROOT$TOPDIR/FISSILE
     non_built_images=$(perl -MYAML::XS -e "print join('|', @{YAML::XS::LoadFile('$BUILD_ROOT$TOPDIR/SOURCES/fissile.yml')->{'DockerImageDeps'}})")
 
     for image in $(chroot $BUILD_ROOT docker images --format "{{.Repository}}:{{.Tag}}" | grep -v $non_built_images); do
-        echo "Saving image $image"
-        filename=$(echo $image | sed 's/\//_/g')
-        if ! chroot $BUILD_ROOT docker save --output "$TOPDIR/FISSILE/$filename.tar" "$image" ; then
-	    cleanup_and_exit 1 "Docker save command failed"
-        fi
-	# Create containerinfo
-	perl -I$BUILD_DIR -MBuild::Docker -e Build::Docker::showcontainerinfo '' "$filename.tar" "$image" containers/annotation> "$BUILD_ROOT$TOPDIR/FISSILE/$filename.containerinfo"
+      echo "Saving image $image"
+      filename=$(echo $image | sed 's/\//_/g')
+      if ! chroot $BUILD_ROOT docker save --output "$TOPDIR/FISSILE/$filename.tar" "$image" ; then
+        cleanup_and_exit 1 "Docker save command failed"
+      fi
+      # Create containerinfo
+      perl -I$BUILD_DIR -MBuild::Docker -e Build::Docker::showcontainerinfo '' "$filename.tar" "$image" containers/annotation> "$BUILD_ROOT$TOPDIR/FISSILE/$filename.containerinfo"
     done
 
     recipe_cleanup_fissile
@@ -131,8 +165,8 @@ recipe_resultdirs_fissile() {
 
 recipe_cleanup_fissile() {
     if test -n "$DOCKERD_STARTED" ; then
-	DOCKERD_STARTED=
-	$BUILD_DIR/startdockerd --root "$BUILD_ROOT" --kill
+      DOCKERD_STARTED=
+      $BUILD_DIR/startdockerd --root "$BUILD_ROOT" --kill
     fi
 }
 

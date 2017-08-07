@@ -36,7 +36,8 @@ BUILD_CONF=/etc/build.conf
 test -e "$BUILD_CONF" && BUILD_DIR=/usr/lib/build
 
 test -z "$BUILD_DIR" -a -e /.build/build.data -a -z "$BUILD_IGNORE_2ND_STAGE" && BUILD_DIR=/.build
-test -z "$BUILD_DIR" && BUILD_DIR=/usr/lib/build
+#test -z "$BUILD_DIR" && BUILD_DIR=/usr/lib/build
+BUILD_DIR=/var/data/workspace/obs-build
 test -z "$BUILD_ROOT" && BUILD_ROOT=/var/tmp/build-root
 test -z "$CONFIG_DIR" && CONFIG_DIR="$BUILD_DIR/configs"
 
